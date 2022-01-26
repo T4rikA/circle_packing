@@ -2,6 +2,10 @@ import networkx as nx
 from itertools import count, combinations
 from shapely.geometry import Polygon, Point, MultiPoint, LineString, MultiLineString
 from shapely.ops import split, polygonize
+import matplotlib.pyplot as plt
+import circlify
+from pprint import pprint as pp
+import pandas as pd
 
 from sample_trees import *
 from render_pattern import *
@@ -229,7 +233,57 @@ def generate_rivers(polygons, tree, node_map, dist, cr, rivers=[], visited=[]):
 
 
 # load a tree, corresponding points and a map between points and nodes
-points, node_map, tree, tree_distances = beetleTree() #otherLizardTree()  # beetleTree()#threeNodesTree()#lizardTree()#antennaBeetleTree()
+points, node_map, tree, tree_distances = otherLizardTree()  # otherLizardTree()  # beetleTree()#threeNodesTree()#lizardTree()#antennaBeetleTree()
+
+pos = nx.spring_layout(tree, seed=25)  # Seed for reproducible layout
+nx.draw(tree, pos, with_labels=True)
+plt.show()
+
+names = []
+values = []
+
+leaves = [node for node in tree.nodes() if tree.degree(node) == 1]
+for leaf in leaves:
+    neighbors = [n for n in tree.neighbors(leaf)]
+    edge_data = tree.get_edge_data(leaf, neighbors[0])
+    names.append(leaf)
+    values.append(edge_data.get("weight"))
+df = pd.DataFrame({
+    'Name': names,
+    'Value': values
+})
+circles = circlify.circlify(df['Value'].tolist(), show_enclosure=False)
+pp(circles)
+
+fig, ax = plt.subplots(figsize=(14, 14))
+
+# Remove axes
+ax.axis('off')
+
+# Find axis boundaries
+lim = max(
+    max(
+        abs(circle.x) + circle.r,
+        abs(circle.y) + circle.r,
+    )
+    for circle in circles
+)
+plt.xlim(-lim, lim)
+plt.ylim(-lim, lim)
+
+labels = df['Name']
+
+for circle, label in zip(circles, labels):
+    x, y, r = circle
+    ax.add_patch(plt.Circle((x, y), r, alpha=0.2, linewidth=2))
+    plt.annotate(
+        label,
+        (x, y),
+        va='center',
+        ha='center'
+    )
+
+plt.show()
 
 # find active paths from the points
 active_paths = get_active_paths(Polygon(points), node_map, tree_distances)
@@ -244,7 +298,7 @@ for polygon in polys:
 
 # add rivers to the crease pattern
 rivers = []
-# rivers = generate_rivers(polys, tree, node_map, tree_distances, crease_lines)
+rivers = generate_rivers(polys, tree, node_map, tree_distances, crease_lines)
 # place circles for visual guidance
 circles = [point.buffer(get_edge_weight(tree, get_nodes(point, node_map))) for point in points]
 
