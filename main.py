@@ -1,11 +1,9 @@
-import networkx as nx
+import math
+
 from itertools import count, combinations
-from shapely.geometry import Polygon, Point, MultiPoint, LineString, MultiLineString
 from shapely.ops import split, polygonize
 import matplotlib.pyplot as plt
-import circlify
-from pprint import pprint as pp
-import pandas as pd
+from scipy.optimize import minimize
 
 from sample_trees import *
 from render_pattern import *
@@ -232,6 +230,58 @@ def generate_rivers(polygons, tree, node_map, dist, cr, rivers=[], visited=[]):
     return rivers
 
 
+def find_layout(tree):
+
+    leaves = [node for node in tree.nodes() if tree.degree(node) == 1]
+    # for leaf in leaves:
+    #     neighbors = [n for n in tree.neighbors(leaf)]
+    #     edge_data = tree.get_edge_data(leaf, neighbors[0])
+    #     names.append(leaf)
+    #     circles.append(edge_data.get("weight"))
+    #
+    # print(circles)
+
+    distances = find_distances(tree)
+    bound = (0,  2*np.amax(distances[2]))
+    bounds = bound * (len(leaves) * 2)
+    print(bounds)
+
+    con1 = {'type': 'ineq', 'fun': constraint1}
+    con2 = {'type': 'eq', 'fun': constraint2}
+    cons = [con1] * len(distances)
+    cons.append(con2)
+    
+    sol = minimize()
+    print(sol)
+
+# TODO optimize to remove duplicate constraints
+def find_distances(tree):
+    distances = []
+    leaves = [node for node in tree.nodes() if tree.degree(node) == 1]
+    for leave in leaves:
+        source = leave
+        targets = [x for x in leaves if x != source]
+        for target in targets:
+            path = nx.dijkstra_path_length(tree, source, target)
+            distances.append([source, target, path])
+    return distances
+
+
+def constraint1(x_1, y_1, x_2, y_2, distance):
+    return math.sqrt((x_2 - x_1)**2 + (y_2 - y_1)**2) - distance
+
+def constraint2(x_1, y_1):
+    return x_1+y_1
+
+
+# todo
+def objective(circles):
+    x_max = np.amax(circles[1:])
+    y_max = np.amax(circles[:1])
+
+    return (x_max.x + x_max.radius) * (y_max.y+y_max.radius)
+
+
 # load a tree, corresponding points and a map between points and nodes
 points, node_map, tree, tree_distances = otherLizardTree()  # otherLizardTree()  # beetleTree()#threeNodesTree()#lizardTree()#antennaBeetleTree()
 
@@ -239,51 +289,7 @@ pos = nx.spring_layout(tree, seed=25)  # Seed for reproducible layout
 nx.draw(tree, pos, with_labels=True)
 plt.show()
 
-names = []
-values = []
-
-leaves = [node for node in tree.nodes() if tree.degree(node) == 1]
-for leaf in leaves:
-    neighbors = [n for n in tree.neighbors(leaf)]
-    edge_data = tree.get_edge_data(leaf, neighbors[0])
-    names.append(leaf)
-    values.append(edge_data.get("weight"))
-df = pd.DataFrame({
-    'Name': names,
-    'Value': values
-})
-circles = circlify.circlify(df['Value'].tolist(), show_enclosure=False)
-pp(circles)
-
-fig, ax = plt.subplots(figsize=(14, 14))
-
-# Remove axes
-ax.axis('off')
-
-# Find axis boundaries
-lim = max(
-    max(
-        abs(circle.x) + circle.r,
-        abs(circle.y) + circle.r,
-    )
-    for circle in circles
-)
-plt.xlim(-lim, lim)
-plt.ylim(-lim, lim)
-
-labels = df['Name']
-
-for circle, label in zip(circles, labels):
-    x, y, r = circle
-    ax.add_patch(plt.Circle((x, y), r, alpha=0.2, linewidth=2))
-    plt.annotate(
-        label,
-        (x, y),
-        va='center',
-        ha='center'
-    )
-
-plt.show()
+find_layout(tree)
 
 # find active paths from the points
 active_paths = get_active_paths(Polygon(points), node_map, tree_distances)
