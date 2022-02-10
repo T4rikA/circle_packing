@@ -233,57 +233,65 @@ def generate_rivers(polygons, tree, node_map, dist, cr, rivers=[], visited=[]):
 def find_layout(tree):
 
     leaves = [node for node in tree.nodes() if tree.degree(node) == 1]
-    # for leaf in leaves:
-    #     neighbors = [n for n in tree.neighbors(leaf)]
-    #     edge_data = tree.get_edge_data(leaf, neighbors[0])
-    #     names.append(leaf)
-    #     circles.append(edge_data.get("weight"))
-    #
-    # print(circles)
+    circles = []
+    for leaf in leaves:
+        neighbors = [n for n in tree.neighbors(leaf)]
+        edge_data = tree.get_edge_data(leaf, neighbors[0])
+        circles.append(edge_data.get("weight"))
 
     distances = find_distances(tree)
-    bound = (0,  2*np.amax(distances[2]))
-    bounds = bound * (len(leaves) * 2)
-    print(bounds)
+    print(distances)
+
+    bnds = [(0,  4*np.amax(distances[2])) for i in range(len(leaves)*2)]
+    print('number of bounded points ', len(bnds)/2)
+    print(bnds)
 
     con1 = {'type': 'ineq', 'fun': constraint1}
     con2 = {'type': 'eq', 'fun': constraint2}
     cons = [con1] * len(distances)
     cons.append(con2)
-    
-    sol = minimize()
+    print('number of constraints ', len(cons))
+
+    initial_guess = np.zeros(len(leaves) * 2)
+
+    sol = minimize(objective, initial_guess, method='SLSQP', bounds=bnds, constraints=cons)
     print(sol)
 
-# TODO optimize to remove duplicate constraints
+
 def find_distances(tree):
     distances = []
     leaves = [node for node in tree.nodes() if tree.degree(node) == 1]
-    for leave in leaves:
-        source = leave
-        targets = [x for x in leaves if x != source]
-        for target in targets:
+    for i in range(len(leaves)):
+        source = leaves[i]
+        for j in range(i+1, len(leaves)):
+            target = leaves[j]
             path = nx.dijkstra_path_length(tree, source, target)
             distances.append([source, target, path])
+    # print(distances)
     return distances
 
 
 def constraint1(x_1, y_1, x_2, y_2, distance):
     return math.sqrt((x_2 - x_1)**2 + (y_2 - y_1)**2) - distance
 
+
 def constraint2(x_1, y_1):
     return x_1+y_1
 
 
-# todo
-def objective(circles):
-    x_max = np.amax(circles[1:])
-    y_max = np.amax(circles[:1])
+def objective(variables, circles):
+    x_coords = variables[::2]
+    y_coords = variables[1::2]
+    x_max = max(x_coords)
+    x_max_index = np.argmax(x_coords)
+    y_max = max(y_coords)
+    y_max_index = np.argmax(y_coords)
 
-    return (x_max.x + x_max.radius) * (y_max.y+y_max.radius)
+    return (x_max+circles[x_max_index]) * (y_max+circles[y_max_index])
 
 
 # load a tree, corresponding points and a map between points and nodes
-points, node_map, tree, tree_distances = otherLizardTree()  # otherLizardTree()  # beetleTree()#threeNodesTree()#lizardTree()#antennaBeetleTree()
+points, node_map, tree, tree_distances = threeNodesTree()  # otherLizardTree()  # beetleTree()#threeNodesTree()#lizardTree()#antennaBeetleTree()
 
 pos = nx.spring_layout(tree, seed=25)  # Seed for reproducible layout
 nx.draw(tree, pos, with_labels=True)
