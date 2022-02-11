@@ -256,9 +256,8 @@ def find_layout(tree):
     fill_constraint_array()
     print(VARIABLES)
 
-    bnds = [(0,  4*np.amax(DISTANCES)) for i in range(LEN_LEAVES*2)]
+    bnds = [(0,  10000000) for i in range(LEN_LEAVES*2)]
     print('number of bounded points ', len(bnds)/2)
-    print(bnds)
 
     cons = []
     for config in VARIABLES:
@@ -270,22 +269,12 @@ def find_layout(tree):
 
     sol = minimize(objective, initial_guess, method='SLSQP', bounds=bnds, constraints=cons)
     print(sol)
-
-
-def to_vector(distances, variables):
-    assert distances.shape == (LEN_LEAVES, LEN_LEAVES)
-    assert variables.shape == (len(distances), 2*LEN_LEAVES)
-    return np.hstack([variables.flatten(), distances.flatten()])
-
-
-def to_array(vec):
-    assert vec.shape == (LEN_LEAVES**2+2*LEN_LEAVES**2,)
-    return vec[:2*LEN_LEAVES**2].reshape(LEN_LEAVES, 2*LEN_LEAVES), vec[2*LEN_LEAVES**2:].reshape(LEN_LEAVES, LEN_LEAVES)
+    return sol.x
 
 
 def fill_constraint_array():
     global VARIABLES
-    VARIABLES = np.zeros((len(DISTANCES), 2 * LEN_LEAVES))
+    VARIABLES = np.zeros((np.count_nonzero(DISTANCES), 2 * LEN_LEAVES))
     constraint_number = 0
     for i in range(len(DISTANCES)):
         for j in range(i+1, len(DISTANCES)):
@@ -309,7 +298,6 @@ def fill_distance_array(tree):
             DISTANCES[source][target] = path
 
 
-# TODO
 def constraint_help(config):
     global VARIABLES
     global DISTANCES
@@ -325,7 +313,7 @@ def constraint_help(config):
                 x_2 = i
                 y_2 = i + 1
     distance = DISTANCES[int(x_1/2)][int(x_2/2)]
-
+    print(x_1,y_1,x_2,y_2, distance)
     return lambda vector: math.sqrt((vector[x_2]-vector[x_1])**2 + (vector[y_2]-vector[y_1])**2) - distance
 
 
@@ -348,7 +336,19 @@ pos = nx.spring_layout(tree, seed=25)  # Seed for reproducible layout
 nx.draw(tree, pos, with_labels=True)
 plt.show()
 
-find_layout(tree)
+result = find_layout(tree)
+print(result)
+print(CIRCLES)
+circles = []
+for i in range(len(CIRCLES)):
+    circles.append(plt.Circle((result[i*2], result[i*2+1]), CIRCLES[i], color='r'))
+fig, ax = plt.subplots()
+for circle in circles:
+    ax.add_patch(circle)
+ax.set_xlim((0, 400))
+ax.set_ylim((0, 400))
+plt.show()
+fig.savefig('plotcircles.png')
 
 # find active paths from the points
 active_paths = get_active_paths(Polygon(points), node_map, tree_distances)
