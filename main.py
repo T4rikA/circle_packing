@@ -322,15 +322,13 @@ def objective(vector):
     x_coords = vector[::2]
     y_coords = vector[1::2]
     x_max = max(x_coords)
-    x_max_index = np.argmax(x_coords)
     y_max = max(y_coords)
-    y_max_index = np.argmax(y_coords)
 
-    return (x_max+CIRCLES[x_max_index]) * (y_max+CIRCLES[y_max_index])
+    return x_max * y_max
 
 
 # load a tree, corresponding points and a map between points and nodes
-points, node_map, tree, tree_distances = threeNodesTree()  # otherLizardTree()  # beetleTree()#threeNodesTree()#lizardTree()#antennaBeetleTree()
+points, node_map, tree, tree_distances = otherLizardTree()  # otherLizardTree()  # beetleTree()#threeNodesTree()#lizardTree()#antennaBeetleTree()
 
 pos = nx.spring_layout(tree, seed=25)  # Seed for reproducible layout
 nx.draw(tree, pos, with_labels=True)
@@ -345,8 +343,14 @@ for i in range(len(CIRCLES)):
 fig, ax = plt.subplots()
 for circle in circles:
     ax.add_patch(circle)
-ax.set_xlim((0, 400))
-ax.set_ylim((0, 400))
+
+x_coords = result[::2]
+y_coords = result[1::2]
+x_max = max(x_coords)
+y_max = max(y_coords)
+max_value = max(x_max,y_max)
+ax.set_xlim((0, max_value))
+ax.set_ylim((0, max_value))
 plt.show()
 fig.savefig('plotcircles.png')
 
