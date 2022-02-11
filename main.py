@@ -5,6 +5,7 @@ from shapely.ops import split, polygonize
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 
+
 from sample_trees import *
 from render_pattern import *
 from helper_functions import *
@@ -231,34 +232,41 @@ def generate_rivers(polygons, tree, node_map, dist, cr, rivers=[], visited=[]):
 
 
 LEN_LEAVES = 0
-
+DISTANCES = []
+VARIABLES = []
+CIRCLES = []
 
 def find_layout(tree):
 
     leaves = [node for node in tree.nodes() if tree.degree(node) == 1]
-    circles = []
+    global CIRCLES
     for leaf in leaves:
         neighbors = [n for n in tree.neighbors(leaf)]
         edge_data = tree.get_edge_data(leaf, neighbors[0])
-        circles.append(edge_data.get("weight"))
+        CIRCLES.append(edge_data.get("weight"))
+
     global LEN_LEAVES
+    global DISTANCES
+    global VARIABLES
+
     LEN_LEAVES = len(leaves)
-    distances = fill_distance_array(tree)
-    print(distances)
+    fill_distance_array(tree)
+    print(DISTANCES)
 
-    variables = fill_constraint_array(distances)
-    print(variables)
+    fill_constraint_array()
+    print(VARIABLES)
 
-    print(constraint1(to_vector(distances, variables)))
-    bnds = [(0,  4*np.amax(distances[2])) for i in range(LEN_LEAVES*2)]
+    bnds = [(0,  4*np.amax(DISTANCES)) for i in range(LEN_LEAVES*2)]
     print('number of bounded points ', len(bnds)/2)
     print(bnds)
 
-    con1 = {'type': 'ineq', 'fun': constraint1}
-    cons = [con1] * len(distances)
+    cons = []
+    for config in VARIABLES:
+        cons.append({'type': 'ineq', 'fun': constraint_help(config)})
     print('number of constraints ', len(cons))
 
     initial_guess = np.zeros(len(leaves) * 2)
+    print('initinitial_guess', initial_guess)
 
     sol = minimize(objective, initial_guess, method='SLSQP', bounds=bnds, constraints=cons)
     print(sol)
@@ -275,61 +283,62 @@ def to_array(vec):
     return vec[:2*LEN_LEAVES**2].reshape(LEN_LEAVES, 2*LEN_LEAVES), vec[2*LEN_LEAVES**2:].reshape(LEN_LEAVES, LEN_LEAVES)
 
 
-def fill_constraint_array(distances):
-    variables = np.zeros((len(distances), 2 * LEN_LEAVES))
-    constraint = 0
-    for i in range(len(distances)-1):
-        for j in range(i+1, len(distances)):
-            if distances[i][j] != 0:
-                variables[constraint][i*2] = 1
-                variables[constraint][i*2+1] = 1
-                variables[constraint][j*2] = 1
-                variables[constraint][j*2+1] = 1
-                constraint += 1
-    return variables
+def fill_constraint_array():
+    global VARIABLES
+    VARIABLES = np.zeros((len(DISTANCES), 2 * LEN_LEAVES))
+    constraint_number = 0
+    for i in range(len(DISTANCES)):
+        for j in range(i+1, len(DISTANCES)):
+            if DISTANCES[i][j] != 0:
+                VARIABLES[constraint_number][i*2] = 1
+                VARIABLES[constraint_number][i*2+1] = 1
+                VARIABLES[constraint_number][j*2] = 1
+                VARIABLES[constraint_number][j*2+1] = 1
+                constraint_number += 1
 
 
 def fill_distance_array(tree):
+    global DISTANCES
     leaves = [node for node in tree.nodes() if tree.degree(node) == 1]
-    distances = np.zeros((len(leaves),len(leaves)))
+    DISTANCES = np.zeros((len(leaves),len(leaves)))
     for i in range(len(leaves)):
         source = leaves[i]
         for j in range(i+1, len(leaves)):
             target = leaves[j]
             path = nx.dijkstra_path_length(tree, source, target)
-            distances[source][target] = path
-    return distances
+            DISTANCES[source][target] = path
+
 
 # TODO
-def constraint1(vector):
-    variables, distances = to_array(vector)
-    variables = variables.flatten()
-    print(variables)
-    print(distances)
+def constraint_help(config):
+    global VARIABLES
+    global DISTANCES
     x_1, x_2, y_1, y_2, distance = 0, 0, 0, 0, 0
-    first = False
-    for i in range(len(variables)-2):
-        if variables[i] != 0 and i % 2 == 1:
+    first = True
+    for i in range(0, len(config)-1, 2):
+        if config[i] != 0:
             if first:
-                x_1 = variables[i]
-                y_1 = variables[i + 1]
-                first = True
+                x_1 = i
+                y_1 = i + 1
+                first = False
             else:
-                x_2 = variables[i]
-                y_2 = variables[i + 1]
-    distance = distances[x_1][x_2]
-    return math.sqrt((x_2-x_1)**2 + (y_2-y_1)**2) - distance
+                x_2 = i
+                y_2 = i + 1
+    distance = DISTANCES[int(x_1/2)][int(x_2/2)]
+
+    return lambda vector: math.sqrt((vector[x_2]-vector[x_1])**2 + (vector[y_2]-vector[y_1])**2) - distance
 
 
-def objective(variables, circles):
-    x_coords = variables[::2]
-    y_coords = variables[1::2]
+def objective(vector):
+    global CIRCLES
+    x_coords = vector[::2]
+    y_coords = vector[1::2]
     x_max = max(x_coords)
     x_max_index = np.argmax(x_coords)
     y_max = max(y_coords)
     y_max_index = np.argmax(y_coords)
 
-    return (x_max+circles[x_max_index]) * (y_max+circles[y_max_index])
+    return (x_max+CIRCLES[x_max_index]) * (y_max+CIRCLES[y_max_index])
 
 
 # load a tree, corresponding points and a map between points and nodes
